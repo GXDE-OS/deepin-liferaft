@@ -1,0 +1,2 @@
+#!/bin/bash
+systemctl --global enable deepin-liferaft.service
