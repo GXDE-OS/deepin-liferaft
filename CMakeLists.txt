@@ -15,7 +15,7 @@ add_test(NAME self-test COMMAND deepin-liferaft --self-test)
 
 install(TARGETS deepin-liferaft RUNTIME DESTINATION bin)
 install(FILES deepin-liferaft.service DESTINATION lib/systemd/user)
-install(FILES deepin-liferaft.desktop DESTINATION share/applications)
+#install(FILES deepin-liferaft.desktop DESTINATION share/applications)
 install(FILES data/icons/deepin-liferaft.svg DESTINATION share/icons/hicolor/scalable/apps)
 install(FILES deepin-liferaft.1 DESTINATION share/man/man1)
 install(FILES README.md DESTINATION share/doc/deepin-liferaft)
