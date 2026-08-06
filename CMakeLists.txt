@@ -6,14 +6,23 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 find_package(Dtk6Widget REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
 
 add_executable(deepin-liferaft main.cpp resources.qrc)
 target_link_libraries(deepin-liferaft PRIVATE Dtk6::Widget)
+
+set(LIFERAFT_TS translations/deepin-liferaft_zh_CN.ts
+              translations/deepin-liferaft_en_US.ts
+              translations/deepin-liferaft_ja_JP.ts
+              translations/deepin-liferaft_ko_KR.ts)
+qt6_add_lrelease(deepin-liferaft TS_FILES ${LIFERAFT_TS}
+                  QM_FILES_OUTPUT_VARIABLE liferaft_qm_files)
 
 enable_testing()
 add_test(NAME self-test COMMAND deepin-liferaft --self-test)
 
 install(TARGETS deepin-liferaft RUNTIME DESTINATION bin)
+install(FILES ${liferaft_qm_files} DESTINATION share/deepin-liferaft/translations)
 install(FILES deepin-liferaft.service DESTINATION lib/systemd/user)
 #install(FILES deepin-liferaft.desktop DESTINATION share/applications)
 install(FILES data/icons/deepin-liferaft.svg DESTINATION share/icons/hicolor/scalable/apps)

@@ -6,6 +6,7 @@ PartOf=graphical-session.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/deepin-liferaft --hidden
+Environment=QT_LOGGING_RULES=*.info=true
 Restart=on-failure
 RestartSec=2
 
