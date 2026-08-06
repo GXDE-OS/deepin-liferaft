@@ -28,6 +28,25 @@ Closing the dialog thaws every owned cgroup before the window closes. If a thaw 
 
 Invalid PSI, `memory.stat`, `memory.current`, or `/proc/meminfo` samples do not trigger an action.
 
+## Logging
+
+Deepin Liferaft logs through DTK's `DLog` (journald appender). Under the systemd user service messages go to the user journal; run from a terminal, they also appear on stderr. Log lines carry a timestamp, level, source file, function, and line.
+
+Inspect the daemon's status:
+
+```bash
+journalctl --user -u deepin-liferaft.service -f
+```
+
+The journal records program startup (pid and hidden/foreground mode), pressure threshold crossings, trigger decisions with pressure, duration, reclaim and memory usage, every freeze (cgroup, trigger, sort metric), every force quit (kill/thaw result), resume and thaw failures, and shutdown cleanup. Invalid samples are logged as warnings on state change rather than every second.
+
+The service unit overrides the DDE session default `QT_LOGGING_RULES` (which suppresses `qInfo` in journald) so that Info-level messages reach the journal:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart deepin-liferaft.service
+```
+
 ## Resource Use
 
 `--hidden` mode delays creation of the table, labels, buttons, and icon-theme data until the dialog is first shown. It also avoids scanning every application cgroup while pressure is low and the window is hidden.
@@ -47,6 +66,7 @@ Most remaining RSS is shared DTK/Qt code. An otherwise empty `DApplication` meas
 - Linux cgroup v2 with `memory`, `memory.swap`, `memory.pressure`, `cgroup.freeze`, and `cgroup.kill`
 - Deepin sessions that place applications in `app-DDE-*` cgroups
 - Qt 6 and DTK 6 Widget development packages
+- Qt 6 Linguist tools (`qt6-tools-dev`, `qt6-l10n-tools`) to compile translations
 - CMake 3.16 or newer and a C++17 compiler
 
 ## Build and Test
@@ -86,6 +106,7 @@ The package installs:
 - `/usr/share/icons/hicolor/scalable/apps/deepin-liferaft.svg`
 - `/usr/share/doc/deepin-liferaft/README.md.gz`
 - `/usr/share/man/man1/deepin-liferaft.1.gz`
+- `/usr/share/deepin-liferaft/translations/` with `zh_CN`, `en_US`, `ja_JP`, and `ko_KR` message catalogs
 
 ## User Service
 
