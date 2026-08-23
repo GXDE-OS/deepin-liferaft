@@ -1,3 +1,13 @@
+deepin-liferaft (0.1.0gxde2) unstable; urgency=medium
+
+  * Start through a gxde-k9 edging task instead of the systemd user service,
+    which could fail to start in some graphical sessions.
+  * Drop the systemd user unit and migrate its global enable links in postinst.
+  * Fall back to recursive cgroup.procs enumeration and pidfd-backed SIGKILL
+    when the kernel does not provide cgroup.kill.
+
+ -- shenmo <shenmo@spark-app.store>  Sun, 23 Aug 2026 20:41:29 +0800
+
 deepin-liferaft (0.1.0gxde1) unstable; urgency=medium
 
   * Initial release.
