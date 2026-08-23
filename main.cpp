@@ -30,11 +30,14 @@
 #include <QCloseEvent>
 #include <QShowEvent>
 #include <algorithm>
+#include <cerrno>
 #include <functional>
 #include <limits>
 #include <optional>
 #include <signal.h>
 #include <sys/signalfd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 DWIDGET_USE_NAMESPACE
@@ -198,6 +201,80 @@ static bool writeCgroup(const QString &path, const char *file, const char *value
     return control.open(QIODevice::WriteOnly) && control.write(value) > 0;
 }
 
+static std::optional<QList<pid_t>> cgroupPids(const QString &cgroup) {
+    QList<pid_t> pids;
+    QFile procs(cgroup + "/cgroup.procs");
+    if (!procs.open(QIODevice::ReadOnly)) return std::nullopt;
+    for (const auto &line : procs.readAll().split('\n')) {
+        bool ok;
+        const qint64 value = line.trimmed().toLongLong(&ok);
+        if (ok && value > 0 && value <= std::numeric_limits<pid_t>::max())
+            pids << static_cast<pid_t>(value);
+    }
+    const QDir dir(cgroup);
+    for (const auto &entry : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const auto children = cgroupPids(cgroup + "/" + entry);
+        if (!children) return std::nullopt;
+        pids += *children;
+    }
+    return pids;
+}
+
+static bool pidInCgroup(pid_t pid, const QString &cgroup) {
+    QFile f(QStringLiteral("/proc/%1/cgroup").arg(pid));
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    for (const auto &line : f.readAll().split('\n')) {
+        if (!line.startsWith("0::")) continue;
+        const QString path = QStringLiteral("/sys/fs/cgroup")
+            + QString::fromUtf8(line.mid(3)).trimmed();
+        return path == cgroup || path.startsWith(cgroup + '/');
+    }
+    return false;
+}
+
+static bool signalPid(pid_t pid) {
+#if defined(SYS_pidfd_open) && defined(SYS_pidfd_send_signal)
+    const int fd = static_cast<int>(syscall(SYS_pidfd_open, pid, 0));
+    if (fd >= 0) {
+        const bool sent = syscall(SYS_pidfd_send_signal, fd, SIGKILL, nullptr, 0) == 0;
+        const int error = errno;
+        ::close(fd);
+        if (sent || error == ESRCH) return true;
+    } else if (errno == ESRCH) {
+        return true; // Already gone; nothing left to signal.
+    }
+#endif
+    return ::kill(pid, SIGKILL) == 0 || errno == ESRCH;
+}
+
+// cgroup.kill is not available on every kernel. Fall back to walking
+// cgroup.procs recursively and pinning each PID with pidfd before SIGKILL,
+// which avoids killing an unrelated process that reused the PID.
+static bool killCgroup(const QString &cgroup, bool *usedFallback = nullptr) {
+    if (usedFallback) *usedFallback = false;
+    if (writeCgroup(cgroup, "cgroup.kill", "1")) return true;
+    if (usedFallback) *usedFallback = true;
+
+    const auto pids = cgroupPids(cgroup);
+    if (!pids) {
+        qWarning() << "Cannot read cgroup.procs for SIGKILL fallback:" << cgroup;
+        return false;
+    }
+    bool allSignalled = true;
+    for (const pid_t pid : *pids) {
+        if (pid == getpid()) {
+            qWarning() << "SIGKILL fallback skipped own pid" << pid << "in" << cgroup;
+            continue;
+        }
+        if (!pidInCgroup(pid, cgroup)) continue;
+        if (!signalPid(pid)) {
+            qWarning() << "SIGKILL fallback failed for pid" << pid << "in" << cgroup;
+            allSignalled = false;
+        }
+    }
+    return allSignalled;
+}
+
 static bool freezeOwned(const QString &cgroup, QSet<QString> &owned) {
     const auto state = fileValue(cgroup + "/cgroup.freeze");
     if (!state || *state != 0 || !writeCgroup(cgroup, "cgroup.freeze", "1")) return false;
@@ -316,6 +393,25 @@ static bool freezerSelfTest() {
     return !thawOwned(owned) && owned.contains(missing);
 }
 
+static bool cgroupWalkSelfTest() {
+    QTemporaryDir dir;
+    const QString app = dir.path() + "/app";
+    const QString child = app + "/child";
+    if (!dir.isValid() || !QDir().mkpath(child)) return false;
+
+    QFile appProcs(app + "/cgroup.procs");
+    if (!appProcs.open(QIODevice::WriteOnly) || appProcs.write("123\n456\n") <= 0) return false;
+    appProcs.close();
+    QFile childProcs(child + "/cgroup.procs");
+    if (!childProcs.open(QIODevice::WriteOnly) || childProcs.write("789\n") <= 0) return false;
+    childProcs.close();
+
+    const auto pids = cgroupPids(app);
+    return pids && pids->size() == 3
+        && pids->contains(123) && pids->contains(456) && pids->contains(789)
+        && !cgroupPids(app + "/missing").has_value();
+}
+
 static bool selfTest() {
     const SystemMemory highSwap{100, 9, 100, 9, true};
     const SystemMemory atLimit{100, 10, 100, 10, true};
@@ -338,6 +434,7 @@ static bool selfTest() {
         && pgscanDelta(100, std::nullopt) == 0
         && pgscanDelta(std::nullopt, 101) == 0
         && freezerSelfTest()
+        && cgroupWalkSelfTest()
         && fmtSize(56727962) == "54.1 MB"
         && fmtSize(1610612736) == "1.5 GB";
 }
@@ -531,11 +628,14 @@ public:
             if (row < 0) return;
             const QString cgroup = m_table->item(row, 0)->data(Qt::UserRole).toString();
             const bool owned = m_frozen.contains(cgroup);
-            const bool killed = writeCgroup(cgroup, "cgroup.kill", "1");
+            bool usedFallback = false;
+            const bool killed = killCgroup(cgroup, &usedFallback);
             const bool thawed = !owned || thawCgroup(cgroup);
             if (killed && thawed) {
                 m_frozen.remove(cgroup);
                 qInfo() << tr("Force quit %1: kill=%2 thaw=%3").arg(cgroup).arg(killed).arg(thawed);
+                if (usedFallback)
+                    qInfo() << "Force quit used SIGKILL fallback for" << cgroup;
             } else {
                 qWarning() << tr("Force quit %1 failed: kill=%2 thaw=%3").arg(cgroup).arg(killed).arg(thawed);
             }
