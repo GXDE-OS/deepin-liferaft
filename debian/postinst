@@ -1,2 +1,19 @@
-#!/bin/bash
-systemctl --global enable deepin-liferaft.service
+#!/bin/sh
+set -e
+
+# Versions <= 0.1.0gxde1 shipped a systemd user unit enabled through
+# "systemctl --global enable". The package now starts through a gxde-k9
+# edging task instead, so drop the old global enable links.
+#
+# A legacy instance already running in the current session is deliberately
+# left alone: deepin-liferaft.edging detects the active unit and skips
+# starting a second monitor. From the next session on, only K9 starts it.
+if [ "$1" = configure ] && [ -n "$2" ] \
+    && dpkg --compare-versions "$2" lt-nl 0.1.0gxde2; then
+    deb-systemd-helper --user disable deepin-liferaft.service >/dev/null 2>&1 || true
+    # systemctl --global enable created this single [Install] link; remove it
+    # even when the old unit file is already gone or no helper state exists.
+    rm -f /etc/systemd/user/graphical-session.target.wants/deepin-liferaft.service
+fi
+
+#DEBHELPER#

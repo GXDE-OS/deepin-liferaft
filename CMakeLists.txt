@@ -23,7 +23,7 @@ add_test(NAME self-test COMMAND deepin-liferaft --self-test)
 
 install(TARGETS deepin-liferaft RUNTIME DESTINATION bin)
 install(FILES ${liferaft_qm_files} DESTINATION share/deepin-liferaft/translations)
-install(FILES deepin-liferaft.service DESTINATION lib/systemd/user)
+install(FILES deepin-liferaft.edging DESTINATION share/gxde-k9/edging)
 #install(FILES deepin-liferaft.desktop DESTINATION share/applications)
 install(FILES data/icons/deepin-liferaft.svg DESTINATION share/icons/hicolor/scalable/apps)
 install(FILES deepin-liferaft.1 DESTINATION share/man/man1)

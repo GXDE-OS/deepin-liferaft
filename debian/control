@@ -7,7 +7,7 @@ Standards-Version: 4.6.2
 
 Package: deepin-liferaft
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, gxde-k9 (>= 1.6.1)
 Description: macOS-style application-memory pressure dialog for Deepin
  Uses Fedora's systemd-oomd PSI and swap policy to open a DTK force-quit
  dialog before the kernel OOM killer acts. Applications are grouped by DDE

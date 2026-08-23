@@ -24,28 +24,24 @@ Detection follows Fedora's systemd-oomd policy while interaction follows macOS. 
 
 Deepin Liferaft only thaws cgroups it froze itself. It skips cgroups already frozen by another component and never freezes the cgroup containing its own process.
 
-Closing the dialog thaws every owned cgroup before the window closes. If a thaw temporarily fails, the window remains open and retries. `SIGTERM` and `SIGINT`, including `systemctl --user stop`, are received through `signalfd` so owned cgroups are thawed before process exit.
+Closing the dialog thaws every owned cgroup before the window closes. If a thaw temporarily fails, the window remains open and retries. `SIGTERM` and `SIGINT`, including a K9 task stop/disable or session logout, are received through `signalfd` so owned cgroups are thawed before process exit.
 
 Invalid PSI, `memory.stat`, `memory.current`, or `/proc/meminfo` samples do not trigger an action.
 
 ## Logging
 
-Deepin Liferaft logs through DTK's `DLog` (journald appender). Under the systemd user service messages go to the user journal; run from a terminal, they also appear on stderr. Log lines carry a timestamp, level, source file, function, and line.
+Deepin Liferaft logs through DTK's `DLog` (journald appender). K9 redirects task stdout/stderr to `/dev/null`, so journald is the primary log destination; run from a terminal, messages also appear on stderr. Log lines carry a timestamp, level, source file, function, and line.
 
-Inspect the daemon's status:
+Inspect the daemon's status and logs:
 
 ```bash
-journalctl --user -u deepin-liferaft.service -f
+gxde-k9-chocker status edging deepin-liferaft --system
+journalctl --user _COMM=deepin-liferaft -f
 ```
 
 The journal records program startup (pid and hidden/foreground mode), pressure threshold crossings, trigger decisions with pressure, duration, reclaim and memory usage, every freeze (cgroup, trigger, sort metric), every force quit (kill/thaw result), resume and thaw failures, and shutdown cleanup. Invalid samples are logged as warnings on state change rather than every second.
 
-The service unit overrides the DDE session default `QT_LOGGING_RULES` (which suppresses `qInfo` in journald) so that Info-level messages reach the journal:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user restart deepin-liferaft.service
-```
+The K9 task inherits the DDE session environment, and DTK's journald appender writes these messages directly to the user journal.
 
 ## Resource Use
 
@@ -64,6 +60,7 @@ Most remaining RSS is shared DTK/Qt code. An otherwise empty `DApplication` meas
 ## Requirements
 
 - Linux cgroup v2 with `memory`, `memory.swap`, `memory.pressure`, `cgroup.freeze`, and `cgroup.kill`
+- `gxde-k9` for session startup and keep-alive
 - Deepin sessions that place applications in `app-DDE-*` cgroups
 - Qt 6 and DTK 6 Widget development packages
 - Qt 6 Linguist tools (`qt6-tools-dev`, `qt6-l10n-tools`) to compile translations
@@ -101,42 +98,42 @@ sudo apt install ../deepin-liferaft_0.1.0_amd64.deb
 The package installs:
 
 - `/usr/bin/deepin-liferaft`
-- `/usr/lib/systemd/user/deepin-liferaft.service`
-- `/usr/share/applications/deepin-liferaft.desktop`
+- `/usr/share/gxde-k9/edging/deepin-liferaft.edging`
 - `/usr/share/icons/hicolor/scalable/apps/deepin-liferaft.svg`
 - `/usr/share/doc/deepin-liferaft/README.md.gz`
 - `/usr/share/man/man1/deepin-liferaft.1.gz`
 - `/usr/share/deepin-liferaft/translations/` with `zh_CN`, `en_US`, `ja_JP`, and `ko_KR` message catalogs
 
-## User Service
+## K9 Session Startup
 
-The service starts the monitor with `--hidden` in graphical sessions. Debian debhelper enables user units globally, so a per-user `disable` does not override the global enable link.
+`gxde-k9` is started by the desktop session through `/etc/xdg/autostart/gxde-k9.desktop`. Its daemon scans `/usr/share/gxde-k9/edging/` every five seconds and keeps the configured `deepin-liferaft` process running. The task inherits the real graphical-session environment, so the dialog is opened in the correct user session on both X11 and Wayland.
 
-Disable only for the current user:
-
-```bash
-systemctl --user mask --now deepin-liferaft.service
-```
-
-Restore it:
+The installed task is active by default for every user. Check it:
 
 ```bash
-systemctl --user unmask deepin-liferaft.service
-systemctl --user enable --now deepin-liferaft.service
+gxde-k9-chocker list --category edging
+gxde-k9-chocker status edging deepin-liferaft --system
 ```
 
-Disable global enable for all users, then stop the current session instance:
+Stop the current monitor (K9 restarts it within five seconds):
 
 ```bash
-sudo systemctl --global disable deepin-liferaft.service
-systemctl --user stop deepin-liferaft.service
+gxde-k9-chocker stop edging deepin-liferaft --system
 ```
 
-Inspect status:
+Disable it permanently for all users:
 
 ```bash
-systemctl --user status deepin-liferaft.service
+sudo gxde-k9-chocker disable edging deepin-liferaft --system --yes
 ```
+
+Re-enable it:
+
+```bash
+sudo gxde-k9-chocker enable edging deepin-liferaft --system --yes
+```
+
+When upgrading from a package version that used the systemd user unit, the old unit's global enable links are removed. If an old instance is still running in the current session, the K9 task waits for it to stop instead of starting a second monitor; the next login starts through K9.
 
 ## Platform Differences
 

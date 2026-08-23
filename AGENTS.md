@@ -6,7 +6,7 @@ These instructions apply to the entire `deepin-liferaft` repository.
 
 ## Project
 
-Deepin Liferaft is a single-binary DTK 6 application. A systemd user service runs it with `--hidden`; sustained Fedora-style systemd-oomd pressure or swap conditions open a macOS-style force-quit dialog. DDE `app-DDE-*` cgroups are the application boundary.
+Deepin Liferaft is a single-binary DTK 6 application. A gxde-k9 edging task in the graphical session runs it with `--hidden`; sustained Fedora-style systemd-oomd pressure or swap conditions open a macOS-style force-quit dialog. DDE `app-DDE-*` cgroups are the application boundary.
 
 ## Layout
 
@@ -15,7 +15,7 @@ Deepin Liferaft is a single-binary DTK 6 application. A systemd user service run
 - `resources.qrc`: embedded application resources
 - `data/icons/`: application icon source
 - `deepin-liferaft.desktop`: DDE application entry
-- `deepin-liferaft.service`: systemd user service
+- `deepin-liferaft.edging`: gxde-k9 keep-alive task that starts the hidden monitor
 - `deepin-liferaft.1`: command manual page
 - `debian/`: Debian packaging
 - `README.md`: user and operator documentation
@@ -36,7 +36,7 @@ Memory-pressure code is safety critical. Preserve all of these invariants:
 - After `cgroup.kill`, thaw a surviving cgroup before releasing ownership.
 - Keep frozen applications visible in the table even when they fall outside the normal top-ten memory list.
 
-Do not test freeze/kill behavior on real user applications. Use a disposable systemd user cgroup or temporary fake control files.
+Do not test freeze/kill behavior on real user applications. Use a disposable user cgroup or temporary fake control files.
 
 ## Policy
 
@@ -93,7 +93,7 @@ Build the Debian package with:
 dpkg-buildpackage -us -uc -b
 ```
 
-Inspect the package for the binary, user service, desktop entry, scalable icon, README, and generated debhelper service enable scripts. Run `systemd-analyze --user verify` on the packaged unit.
+Inspect the package for the binary, gxde-k9 edging task, scalable icon, README, man page, translations, and generated debhelper maintainer snippets. Run `bash -n` on the packaged edging task and confirm it appears in `gxde-k9-chocker list --category edging`.
 
 ## Git
 

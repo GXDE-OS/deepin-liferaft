@@ -1,0 +1,22 @@
+# gxde-k9 "edging" keep-alive task for Deepin Liferaft.
+#
+# K9 is started as an XDG autostart application inside the graphical session,
+# so the process launched here inherits the real session environment
+# (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR, DBUS_SESSION_BUS_ADDRESS).
+# This replaces the old systemd user unit, which could fail to start in some
+# sessions. K9 re-checks this task every 5 seconds and restarts the process
+# when it exits.
+
+# 目标程序路径（需要运行的可执行文件或命令）
+TARGET_PROCESS="exec /usr/bin/deepin-liferaft --hidden"
+# 留空：K9 统一接管启动，即使 systemd 正在运行也照常拉起
+DONT_RUN_IF_SYSTEMD_EXIST=""
+
+# Migration guard: an old systemd user instance (deepin-liferaft <= 0.1.0gxde1)
+# may still be running in the current session after upgrade. Do not start a
+# second monitor in that session; from the next session on, only this K9 task
+# remains.
+if command -v systemctl >/dev/null 2>&1 \
+    && systemctl --user --quiet is-active deepin-liferaft.service 2>/dev/null; then
+    exit 0
+fi
