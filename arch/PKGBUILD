@@ -1,0 +1,41 @@
+# Maintainer: CharOfString <root@charofstring.cc>
+
+pkgname=deepin-liferaft
+pkgver=0.1.0gxde2
+pkgrel=1
+pkgdesc='Application memory-pressure recovery dialog for Deepin'
+arch=('x86_64' 'aarch64')
+url='https://github.com/GXDE-OS/deepin-liferaft'
+license=('GPL-3.0-or-later')
+depends=('dtk6widget' 'qt6-base' 'gxde-k9>=1.6.1' 'glibc' 'libgcc' 'libstdc++')
+makedepends=('cmake' 'ninja' 'qt6-tools')
+source=()
+
+# Build from the repository root (../ relative to this PKGBUILD) without
+# fetching sources from the network. Copy the working tree into srcdir so the
+# build cannot leave generated files in the repository.
+_srcroot="$(realpath "$startdir/..")"
+
+prepare() {
+  rm -rf "$srcdir/$pkgname"
+  mkdir -p "$srcdir/$pkgname"
+  cp -a "$_srcroot"/{CMakeLists.txt,LICENSE,README.md,data,deepin-liferaft.1,deepin-liferaft.edging,main.cpp,resources.qrc,translations} \
+    "$srcdir/$pkgname/"
+}
+
+build() {
+  cmake -B build -S "$srcdir/$pkgname" -GNinja \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  ninja -C build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" ninja -C build install
+  install -Dm644 "$srcdir/$pkgname/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
